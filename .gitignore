@@ -14,6 +14,7 @@ backend/.env
 backend/.env.txt
 !.env.example.txt
 !backend/.env.example.txt
+!backend/.env.example
 
 # Build files
 frontend/build/
@@ -33,9 +34,13 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Database
-*.sql
+# Database & Local Backups
 *.sqlite
+.localdb/
+backup/
+zk_backup.js
+database/*.sql
+!database/fingergate_export.sql
 
 # AI Agent & Assistant directories (excluded)
 .agents/

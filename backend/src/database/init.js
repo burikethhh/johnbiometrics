@@ -35,7 +35,11 @@ CREATE TABLE IF NOT EXISTS access_logs (
   confidence_score FLOAT DEFAULT 0.0,
   verification_duration_ms INT DEFAULT 0,
   is_genuine TINYINT(1) DEFAULT NULL,
-  scan_quality FLOAT DEFAULT 0.0
+  scan_quality FLOAT DEFAULT 0.0,
+  terminal_user_id VARCHAR(24) DEFAULT NULL,
+  device_ip VARCHAR(45) DEFAULT NULL,
+  source_ref VARCHAR(64) DEFAULT NULL,
+  INDEX idx_source_ref (source_ref)
 );
 
 CREATE TABLE IF NOT EXISTS system_admins (

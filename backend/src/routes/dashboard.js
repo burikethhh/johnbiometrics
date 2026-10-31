@@ -5,7 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 
 router.use(authenticateToken);
 
-router.get('/overview', async (req, res) => {
+const overviewHandler = async (req, res) => {
   try {
     const [totalResidents] = await pool.query('SELECT COUNT(*) as count FROM residents');
     const [activeResidents] = await pool.query("SELECT COUNT(*) as count FROM residents WHERE status = 'Active'");
@@ -44,7 +44,10 @@ router.get('/overview', async (req, res) => {
     console.error('Error fetching dashboard:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
+
+router.get('/', overviewHandler);
+router.get('/overview', overviewHandler);
 
 router.get('/hourly', async (req, res) => {
   try {

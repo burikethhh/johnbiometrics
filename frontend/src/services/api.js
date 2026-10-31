@@ -74,4 +74,14 @@ export const evaluationAPI = {
   getTimeline: () => api.get('/api/evaluation?type=timeline')
 };
 
+export const zkAPI = {
+  status: (deviceId) => api.get(`/api/zkteco/status${deviceId ? `?device_id=${deviceId}` : ''}`),
+  users: (deviceId) => api.get(`/api/zkteco/users${deviceId ? `?device_id=${deviceId}` : ''}`),
+  scan: () => api.get('/api/zkteco/scan'),
+  connect: (data) => api.post('/api/zkteco/connect', data),
+  pullLogs: (data) => api.post('/api/zkteco/pull-logs', data),
+  syncResidents: (data) => api.post('/api/zkteco/sync-residents', data),
+  enroll: (data) => api.post('/api/zkteco/enroll', data)
+};
+
 export default api;

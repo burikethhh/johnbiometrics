@@ -3,16 +3,17 @@ import {
   Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Alert, Snackbar, Chip, Tooltip, TablePagination, InputAdornment,
-  CircularProgress, Stepper, Step, StepLabel, FormControl, Select, MenuItem
+  CircularProgress, Stepper, Step, StepLabel, FormControl, InputLabel, Select, MenuItem, Radio, RadioGroup, FormControlLabel, Switch
 } from '@mui/material';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Fingerprint as FingerprintIcon, Search as SearchIcon,
   CheckCircle as CheckIcon, Error as ErrorIcon,
   Usb as UsbIcon, Refresh as RefreshIcon,
-  SettingsInputComponent as BoxIcon
+  SettingsInputComponent as BoxIcon, TouchApp as TouchIcon,
+  Block as BlockIcon, CheckCircleOutline as UnblockIcon
 } from '@mui/icons-material';
-import { residentAPI, fingerprintAPI } from '../services/api';
+import { residentAPI, fingerprintAPI, zkAPI } from '../services/api';
 import fingerprintService from '../services/fingerprintService';
 
 const Residents = () => {
@@ -24,6 +25,10 @@ const Residents = () => {
   const [formData, setFormData] = useState({ full_name: '', address: '', contact_number: '', household_number: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [enrollBiometricsOnAdd, setEnrollBiometricsOnAdd] = useState(true);
+  const [enrollMethod, setEnrollMethod] = useState('zkteco');
+  const [regCapturedTemplate, setRegCapturedTemplate] = useState(null);
+  const [regCapturing, setRegCapturing] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -38,6 +43,7 @@ const Residents = () => {
   const [readerName, setReaderName] = useState('');
   const [selectedDriver, setSelectedDriver] = useState('auto');
   const [connectingSerial, setConnectingSerial] = useState(false);
+  const [terminalEnrolling, setTerminalEnrolling] = useState(false);
 
   const steps = ['Connect Scanner', 'Place Finger', 'Capture Template', 'Register'];
 
@@ -73,13 +79,47 @@ const Residents = () => {
         full_name: resident.full_name,
         address: resident.address || '',
         contact_number: resident.contact_number || '',
-        household_number: resident.household_number || ''
+        household_number: resident.household_number || '',
+        status: resident.status || 'Active'
       });
     } else {
       setSelectedResident(null);
-      setFormData({ full_name: '', address: '', contact_number: '', household_number: '' });
+      setFormData({ full_name: '', address: '', contact_number: '', household_number: '', status: 'Active' });
+      setEnrollBiometricsOnAdd(true);
+      setEnrollMethod('zkteco');
+      setRegCapturedTemplate(null);
     }
     setOpenDialog(true);
+  };
+
+  const handleToggleStatus = async (resident) => {
+    const newStatus = resident.status === 'Active' ? 'Blocked' : 'Active';
+    const confirmMsg = newStatus === 'Blocked'
+      ? `Are you sure you want to BLOCK ${resident.full_name}? They will lose gate access and be removed from the terminal.`
+      : `Re-activate ${resident.full_name}? They will be re-synced to the terminal.`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        await residentAPI.update(resident.resident_id, { status: newStatus });
+        showSnackbar(`Resident status updated to ${newStatus}`, 'success');
+        fetchResidents();
+      } catch (err) {
+        showSnackbar('Failed to update resident status', 'error');
+      }
+    }
+  };
+
+  const handleCaptureForRegistration = async () => {
+    setRegCapturing(true);
+    try {
+      await fingerprintService.initialize();
+      const template = await fingerprintService.captureTemplate();
+      setRegCapturedTemplate(template);
+      showSnackbar('Fingerprint template captured successfully!', 'success');
+    } catch (err) {
+      showSnackbar(err.message || 'Failed to capture fingerprint from sensor', 'error');
+    } finally {
+      setRegCapturing(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -88,10 +128,16 @@ const Residents = () => {
         await residentAPI.update(selectedResident.resident_id, formData);
         showSnackbar('Resident updated successfully');
       } else {
-        await residentAPI.create(formData);
-        showSnackbar('Resident added successfully');
+        const payload = {
+          ...formData,
+          enroll_zk: Boolean(enrollBiometricsOnAdd && enrollMethod === 'zkteco'),
+          fingerprint_encoding: (enrollBiometricsOnAdd && enrollMethod === 'usb') ? regCapturedTemplate : null
+        };
+        const response = await residentAPI.create(payload);
+        showSnackbar(response.data?.message || 'Resident registered successfully', 'success');
       }
       setOpenDialog(false);
+      setRegCapturedTemplate(null);
       fetchResidents();
     } catch (error) {
       showSnackbar(error.response?.data?.error || 'Operation failed', 'error');
@@ -219,6 +265,21 @@ const Residents = () => {
     showSnackbar('Mock fingerprint generated (demo mode)', 'info');
   };
 
+  const handleTerminalEnroll = async () => {
+    if (!selectedResident) return;
+    setTerminalEnrolling(true);
+    setScannerError(null);
+    try {
+      const response = await zkAPI.enroll({ resident_id: selectedResident.resident_id });
+      showSnackbar(response.data.message, 'success');
+      setOpenFingerprintDialog(false);
+    } catch (error) {
+      setScannerError(error.response?.data?.error || 'Terminal unreachable');
+    } finally {
+      setTerminalEnrolling(false);
+    }
+  };
+
   const paginatedResidents = filteredResidents.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   const availableDrivers = fingerprintService.getAvailableDrivers();
 
@@ -269,6 +330,15 @@ const Residents = () => {
                   <TableCell><Chip label={resident.household_number || '-'} size="small" variant="outlined" /></TableCell>
                   <TableCell><Chip label={resident.status} size="small" color={resident.status === 'Active' ? 'success' : 'error'} sx={{ fontWeight: 600 }} /></TableCell>
                   <TableCell>
+                    <Tooltip title={resident.status === 'Active' ? 'Block Access (Revoke)' : 'Unblock Access (Restore)'}>
+                      <IconButton
+                        color={resident.status === 'Active' ? 'warning' : 'success'}
+                        onClick={() => handleToggleStatus(resident)}
+                        size="small"
+                      >
+                        {resident.status === 'Active' ? <BlockIcon fontSize="small" /> : <UnblockIcon fontSize="small" />}
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Register / Update Biometrics">
                       <IconButton color="secondary" onClick={() => handleOpenFingerprint(resident)} size="small">
                         <FingerprintIcon fontSize="small" />
@@ -313,10 +383,125 @@ const Residents = () => {
           <TextField fullWidth label="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} margin="normal" />
           <TextField fullWidth label="Contact Number" value={formData.contact_number} onChange={(e) => setFormData({ ...formData, contact_number: e.target.value })} margin="normal" />
           <TextField fullWidth label="Household Number" value={formData.household_number} onChange={(e) => setFormData({ ...formData, household_number: e.target.value })} margin="normal" />
+
+          {selectedResident && (
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="resident-status-label">Access Status</InputLabel>
+              <Select
+                labelId="resident-status-label"
+                value={formData.status || 'Active'}
+                label="Access Status"
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              >
+                <MenuItem value="Active">Active (Gate Access Granted)</MenuItem>
+                <MenuItem value="Blocked">Blocked (Access Denied / Revoked)</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
+          {/* Biometric Fingerprint Registration Section during New Resident Registration */}
+          {!selectedResident && (
+            <Box sx={{ mt: 2.5, p: 2, borderRadius: '14px', bgcolor: 'rgba(0,137,123,0.06)', border: '1px solid rgba(0,137,123,0.25)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FingerprintIcon color="primary" />
+                  <Typography variant="subtitle2" fontWeight="700">
+                    Biometric Fingerprint Registration
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={enrollBiometricsOnAdd}
+                      onChange={(e) => setEnrollBiometricsOnAdd(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={<Typography variant="caption" fontWeight="600">{enrollBiometricsOnAdd ? 'Enroll Now' : 'Skip'}</Typography>}
+                />
+              </Box>
+
+              {enrollBiometricsOnAdd && (
+                <Box>
+                  <FormControl component="fieldset" fullWidth sx={{ mb: 1.5 }}>
+                    <RadioGroup
+                      row
+                      value={enrollMethod}
+                      onChange={(e) => setEnrollMethod(e.target.value)}
+                    >
+                      <FormControlLabel
+                        value="zkteco"
+                        control={<Radio size="small" />}
+                        label={<Typography variant="body2" fontWeight="600">ZKTeco Terminal (LAN / Wi-Fi)</Typography>}
+                      />
+                      <FormControlLabel
+                        value="usb"
+                        control={<Radio size="small" />}
+                        label={<Typography variant="body2" fontWeight="600">USB Scanner / Sensor</Typography>}
+                      />
+                    </RadioGroup>
+                  </FormControl>
+
+                  {enrollMethod === 'zkteco' && (
+                    <Box sx={{ p: 1.5, borderRadius: '10px', bgcolor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,137,123,0.15)' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        • On registration, this resident will be automatically added to the ZKTeco terminal database.<br />
+                        • The terminal LCD will immediately prompt <strong>"{formData.full_name || 'Resident'}, Please press finger"</strong> for 3 touches.
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {enrollMethod === 'usb' && (
+                    <Box sx={{ p: 1.5, borderRadius: '10px', bgcolor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.08)', textAlign: 'center' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 1 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={handleCaptureForRegistration}
+                          disabled={regCapturing}
+                          startIcon={regCapturing ? <CircularProgress size={14} color="inherit" /> : <FingerprintIcon />}
+                          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+                        >
+                          {regCapturing ? 'Scanning Finger...' : regCapturedTemplate ? 'Scan Again' : 'Scan Fingerprint'}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            const mock = fingerprintService.constructor.generateMockTemplate();
+                            setRegCapturedTemplate(mock);
+                            showSnackbar('Mock biometric template generated', 'info');
+                          }}
+                          sx={{ textTransform: 'none', borderRadius: '8px' }}
+                        >
+                          Demo Scan
+                        </Button>
+                      </Box>
+                      {regCapturedTemplate ? (
+                        <Chip
+                          icon={<CheckIcon />}
+                          color="success"
+                          size="small"
+                          label="Biometric template captured & ready to save!"
+                          sx={{ fontWeight: 600 }}
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Touch your USB scanner or laptop sensor to capture fingerprint.
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button onClick={() => setOpenDialog(false)} className="glass-btn-outlined">Cancel</Button>
-          <Button onClick={handleSubmit} className="glass-btn">{selectedResident ? 'Update' : 'Add'}</Button>
+          <Button onClick={handleSubmit} className="glass-btn">
+            {selectedResident ? 'Update Resident' : enrollBiometricsOnAdd ? 'Register & Enroll Fingerprint' : 'Register Resident'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -379,6 +564,33 @@ const Residents = () => {
                 ))}
               </Select>
             </FormControl>
+          </Box>
+
+          {/* ZKTeco Terminal Enrollment */}
+          <Box sx={{ mb: 2.5, p: 2, borderRadius: '12px', bgcolor: 'rgba(0,137,123,0.06)', border: '1px solid rgba(0,137,123,0.2)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TouchIcon color="primary" fontSize="small" />
+                <Box>
+                  <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ display: 'block', textTransform: 'uppercase' }}>
+                    ZKTeco Terminal Mode
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Enrollment happens on the device sensor (3 touches on its LCD)
+                  </Typography>
+                </Box>
+              </Box>
+              <Button
+                size="small"
+                variant="contained"
+                startIcon={terminalEnrolling ? <CircularProgress size={14} color="inherit" /> : <TouchIcon />}
+                onClick={handleTerminalEnroll}
+                disabled={terminalEnrolling}
+                sx={{ py: 0.5, px: 1.5, fontSize: '0.75rem', borderRadius: '8px' }}
+              >
+                {terminalEnrolling ? 'Starting...' : 'Enroll on Terminal'}
+              </Button>
+            </Box>
           </Box>
 
           {/* Scanner Status Box */}

@@ -1,0 +1,24 @@
+{
+  "name": "greenvalley",
+  "version": "1.0.0",
+  "description": "FingerGate - Web-Based Biometric Access Control System with ZKTeco Hardware Integration",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend start",
+    "build": "npm --prefix frontend run build",
+    "db:init": "npm --prefix backend run db:init",
+    "db:dump": "node scripts/dump_db.js"
+  },
+  "keywords": [
+    "biometric",
+    "access-control",
+    "zkteco",
+    "fingerprint",
+    "face-recognition"
+  ],
+  "author": "FingerGate Team",
+  "license": "ISC"
+}
+
