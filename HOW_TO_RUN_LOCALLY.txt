@@ -1,0 +1,57 @@
+================================================================================
+   FINGERGATE ACCESS CONTROL SYSTEM (GREENVALLEY) — QUICK START GUIDE
+================================================================================
+
+PREREQUISITES:
+1. Node.js (v18 or v20 LTS) -> https://nodejs.org
+2. MySQL / MariaDB (e.g. XAMPP) -> https://www.apachefriends.org
+
+--------------------------------------------------------------------------------
+STEP 1: DATABASE SETUP (Takes 1 minute)
+--------------------------------------------------------------------------------
+1. Open XAMPP Control Panel and click "Start" next to MySQL.
+2. Open your browser and go to:
+   http://localhost/phpmyadmin
+3. Click "New" on the left menu, enter database name: fingergate
+   Click "Create".
+4. Select the newly created "fingergate" database and click the "Import" tab at the top.
+5. Click "Choose File", select:
+   database/fingergate_export.sql
+   Click "Import" at the bottom.
+
+(Alternative: If using MySQL command line, run:
+ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS fingergate;"
+ mysql -u root -p fingergate < database/fingergate_export.sql
+)
+
+--------------------------------------------------------------------------------
+STEP 2: LAUNCH THE SYSTEM
+--------------------------------------------------------------------------------
+Double-click:
+   start-fingergate.bat
+
+The server will start on port 3000 and automatically open:
+   http://localhost:3000
+
+DEFAULT LOGIN CREDENTIALS:
+   Username: Admin
+   Password: Admin123!
+
+--------------------------------------------------------------------------------
+STEP 3: CONNECTING THE ZKTECO MB460 TERMINAL
+--------------------------------------------------------------------------------
+1. Connect the laptop and the ZKTeco MB460 to the SAME Wi-Fi router or hotspot.
+2. In the web dashboard, click "Devices" in the left navigation.
+3. In the "ZKTeco Direct-Connect" card at the top, click:
+   "Auto-Scan Router"
+4. The system will automatically scan your local network in 2 seconds and find the terminal.
+5. Click "Connect & Save IP".
+
+Done! Real-time biometric push streaming is active with zero delay (<20ms).
+
+--------------------------------------------------------------------------------
+STOPPING THE SERVER
+--------------------------------------------------------------------------------
+Double-click:
+   stop-fingergate.bat
+================================================================================

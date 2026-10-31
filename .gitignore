@@ -30,9 +30,10 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs & Archives
 *.log
 npm-debug.log*
+*.zip
 
 # Database & Local Backups
 *.sqlite
