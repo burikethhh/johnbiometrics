@@ -56,3 +56,4 @@ Remove-Item -Recurse -Force (Join-Path $baseDir "_release")
 
 $sizeMB = (Get-Item $zipPath).Length / 1MB
 Write-Host ("`nSUCCESS! Portable ZIP created: " + $zipPath + " (" + [math]::Round($sizeMB, 2) + " MB)")
+

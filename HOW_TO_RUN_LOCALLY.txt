@@ -55,3 +55,4 @@ STOPPING THE SERVER
 Double-click:
    stop-fingergate.bat
 ================================================================================
+
